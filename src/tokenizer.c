@@ -1,6 +1,7 @@
 #include "tokenizer.h"
 #include <string.h>
 #include <stdio.h>
+#include <ctype.h>
 
 void tokenizer_init(Tokenizer* tokenizer, const char* src)
 {
@@ -47,21 +48,188 @@ static void skip_witespaces(Tokenizer* t)
     }
 }
 
+static char peek_next(Tokenizer* t)
+{
+    if (is_at_end(t)) return '\0';
+    return t->current[1];
+}
+
+
+static Token number_literal(Tokenizer* t)
+{
+    Token token;
+    token.start = t->current;
+    token.line = t->line;
+    token.type = TOKEN_NUMBER;
+
+    advance(t);
+    while(isdigit(peek(t)))
+    {
+        advance(t);
+    }
+
+    if (peek(t) == '.' && isdigit(peek_next(t)))
+    {
+        advance(t);
+        while(isdigit(peek(t)))
+        {
+            advance(t);
+        }
+    }
+
+    token.length = (int)(t->current - token.start);
+    return token;
+}
+
+static bool match(Tokenizer* t, char expected) {
+    if (is_at_end(t)) return false;
+    if (*t->current != expected) return false;
+    t->current++;
+    return true;
+}
+
+static Token identifier(Tokenizer* t)
+{
+    Token token;
+    token.start = t->current;
+    token.line = t->line;
+
+    while(isalnum(peek(t)) || peek(t) == '_') { advance(t); }
+    token.length = (int)(t->current - token.start);
+
+    const char* text = token.start;
+    if (token.length == 6 && memcmp(text, "SELECT", 6) == 0) {
+        token.type = TOKEN_SELECT;
+    } else if (token.length == 4 && memcmp(text, "FROM", 4) == 0) {
+        token.type = TOKEN_FROM;
+    } else if (token.length == 5 && memcmp(text, "WHERE", 5) == 0) {
+        token.type = TOKEN_WHERE;
+    } else if (token.length == 6 && memcmp(text, "INSERT", 6) == 0) {
+        token.type = TOKEN_INSERT;
+    } else if (token.length == 4 && memcmp(text, "INTO", 4) == 0) {
+        token.type = TOKEN_INTO;
+    } else if (token.length == 6 && memcmp(text, "CREATE", 6) == 0) {
+        token.type = TOKEN_CREATE;
+    } else if (token.length == 5 && memcmp(text, "TABLE", 5) == 0) {
+        token.type = TOKEN_TABLE;
+    } else if (token.length == 3 && memcmp(text, "INT", 3) == 0) {
+        token.type = TOKEN_INT;
+    } else if (token.length == 4 && memcmp(text, "TEXT", 4) == 0) {
+        token.type = TOKEN_TEXT;
+    } else {
+        token.type = TOKEN_IDENTIFIER;
+    }
+
+    return token;
+}
+
+static Token string_literal(Tokenizer* t)
+{
+    Token token;
+    token.start = t->current;
+    token.line = t->line;
+
+    advance(t);
+
+    while(peek(t) != '"' && !is_at_end(t))
+    {
+        if (peek(t) == '\n') t->line++;
+        advance(t);
+    }
+
+    if (is_at_end(t))
+    {
+        token.type = TOKEN_ERROR;
+        token.length = 0;
+        return token;
+    }
+
+    advance(t);
+    token.type = TOKEN_STRING;
+    token.length = (int)(t->current - token.start);
+
+    return token;
+}
+
 Token tokenizer_next(Tokenizer* t)
 {
-    //char c;
+    char c;
 
     skip_witespaces(t);
 
     if (is_at_end(t))
     {
-        printf("Reached if\n");
         Token token = {TOKEN_EOF, t->current, 0, t->line};
         return token;
     }
-    Token token = {TOKEN_EOF, t->current, 0, t->line};
-    return token;
-    // c = peek(t);
+
+    c = peek(t);
+
+    if (isalpha(c) || c == '_') 
+    {
+        return identifier(t);
+    }
+
+    if (isdigit(c))
+    {
+        return number_literal(t);
+    }
+
+    switch(c)
+    {
+        case '*': advance(t); return (Token){TOKEN_STAR, t->current-1, 1, t->line};
+        case ',': advance(t); return (Token){TOKEN_COMMA, t->current-1, 1, t->line};
+        case ';': advance(t); return (Token){TOKEN_SEMICOLON, t->current-1, 1, t->line};
+        case '(': advance(t); return (Token){TOKEN_LPAREN, t->current-1, 1, t->line};
+        case ')': advance(t); return (Token){TOKEN_RPAREN, t->current-1, 1, t->line};
+        case '=': advance(t); return (Token){TOKEN_EQUAL, t->current-1, 1, t->line};
+        case '"': advance(t); return string_literal(t);
+        case '>':
+            advance(t);
+            if (match(t, '='))
+            {
+                return (Token){
+                    TOKEN_GREATER_EQUAL, 
+                    t->current-2, 
+                    2, 
+                    t->line
+                };
+            }
+            return (Token){
+                TOKEN_GREATER,
+                t->current-1,
+                1,
+                t->line
+            };
+        case '<':
+            advance(t);
+            if (match(t, '=')) {
+                return (Token){
+                    TOKEN_LESS_EQUAL,
+                    t->current-2, 
+                    2, 
+                    t->line};
+            } else if (match(t, '>')) {
+                return (Token){
+                    TOKEN_NOT_EQUAL, 
+                    t->current-2, 
+                    2, 
+                    t->line
+                };
+            }
+            return (Token){
+                TOKEN_LESS, 
+                t->current-1, 
+                1, 
+                t->line
+            };
+    }
+    advance(t);
+    return (Token){
+        TOKEN_ERROR,
+        t->current-1,
+        1, t->line
+    };
     
 }
 
