@@ -1,4 +1,5 @@
 #include "shell.h"
+#include "tokenizer.h"
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
@@ -41,8 +42,42 @@ void shell_process_command(ShellState* state, const char* command)
         printf("SELECT ...\n");
         return;
     }
-    printf("Команда распознана: '%s'\n", command);
-    printf("(Реализация в процессе разработки)\n");
+    if (strcmp(command, ".tokens") == 0)
+    {
+        printf("Введите SQL команду для токенизации:\n");
+        char* sql = readline("test> ");
+        if (sql && strlen(sql) > 0)
+        {
+            Tokenizer tokenizer;
+            tokenizer_init(&tokenizer, sql);
+
+            printf("Токены:\n");
+            Token token;
+            do
+            {
+                token = tokenizer_next(&tokenizer);
+                token_print(&token);
+                printf(" ");
+            } while (token.type != TOKEN_EOF && token.type != TOKEN_ERROR);
+            printf("\n");
+
+            free(sql);
+        }
+        return;
+    }
+    printf("Токенизация команды: '%s'\n", command);
+    Tokenizer tokenizer;
+    tokenizer_init(&tokenizer, command);
+    Token token;
+    do {
+        token = tokenizer_next(&tokenizer);
+        token_print(&token);
+        printf(" ");
+    } while (token.type != TOKEN_EOF && token.type != TOKEN_ERROR);
+    printf("\n(Парсер в процессе разработки)\n");
+    
+    // printf("Команда распознана: '%s'\n", command);
+    // printf("(Реализация в процессе разработки)\n");
 
 }
 
