@@ -15,18 +15,54 @@ static char peek(const Tokenizer* t)
     return *t->current;
 }
 
+static bool is_at_end(Tokenizer* t)
+{
+    return *t->current == '\0';
+}
+
+static char peek_next(Tokenizer* t)
+{
+    if (is_at_end(t)) return '\0';
+    return t->current[1];
+}
+
 static char advance(Tokenizer* t)
 {
     t->current++;
     return t->current[-1];
 }
 
-static bool is_at_end(Tokenizer* t)
-{
-    return *t->current == '\0';
+static bool match(Tokenizer* t, char expected) {
+    if (is_at_end(t)) return false;
+    if (*t->current != expected) return false;
+    t->current++;
+    return true;
 }
 
-static void skip_witespaces(Tokenizer* t)
+static void skip_single_comment(Tokenizer* t)
+{
+    while(peek(t) != '\n' && !is_at_end(t)) 
+        {advance(t);}
+}
+
+static void skip_multiline_comment(Tokenizer* t)
+{
+    advance(t);
+    advance(t);
+    while(!(peek(t) == '*' && peek_next(t) == '/') && !is_at_end(t))
+    {
+        if (peek(t) == '\n') t->line++;
+        advance(t);
+    }
+
+    if (peek(t) == '*' && peek_next(t) == '/')
+    {
+        advance(t);
+        advance(t);
+    }
+}
+
+static void skip_witespaces_and_comments(Tokenizer* t)
 {
     while (true)
     {
@@ -42,16 +78,27 @@ static void skip_witespaces(Tokenizer* t)
                 t->line++;
                 advance(t);
                 break;
+            case '-':
+                if (peek_next(t) == '-')
+                {
+                    skip_single_comment(t);
+                }
+                else
+                {
+                    return;
+                }
+                break;
+            case '/':
+                if (peek_next(t) == '*')
+                {
+                    skip_multiline_comment(t);
+                }
+                else return;
+                break;
             default:
                 return;
         }
     }
-}
-
-static char peek_next(Tokenizer* t)
-{
-    if (is_at_end(t)) return '\0';
-    return t->current[1];
 }
 
 
@@ -81,12 +128,7 @@ static Token number_literal(Tokenizer* t)
     return token;
 }
 
-static bool match(Tokenizer* t, char expected) {
-    if (is_at_end(t)) return false;
-    if (*t->current != expected) return false;
-    t->current++;
-    return true;
-}
+
 
 static Token identifier(Tokenizer* t)
 {
@@ -151,11 +193,13 @@ static Token string_literal(Tokenizer* t)
     return token;
 }
 
+
+
 Token tokenizer_next(Tokenizer* t)
 {
     char c;
 
-    skip_witespaces(t);
+    skip_witespaces_and_comments(t);
 
     if (is_at_end(t))
     {

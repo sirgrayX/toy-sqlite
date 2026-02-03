@@ -2,7 +2,7 @@ CC = gcc
 CFLAGS = -Wall -Wextra -std=c11 -g
 
 TARGET = toy-sqlite
-SRC = src/main.c src/shell.c
+SRC = src/main.c src/shell.c src/tokenizer.c
 OBJ = $(SRC:.c=.o)
 LIBS = -lreadline
 
